@@ -12,7 +12,6 @@ on:
       - "packages/app/**"
       - "packages/expo-two-way-audio/**"
       - "packages/highlight/**"
-      - "packages/plugin/**"
       - "packages/protocol/**"
       - "packages/client/**"
       - "packages/server/**"
