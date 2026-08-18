@@ -96,7 +96,7 @@ import {
   resolveTerminalProfiles,
 } from "@getpaseo/protocol/terminal-profiles";
 import { buildSettingsHostSectionRoute } from "@/utils/host-routes";
-import type { TerminalProfileInput } from "@/screens/workspace/terminals/use-workspace-terminals";
+import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import { TerminalProfileIcon } from "@/components/terminal-profile-icon";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
@@ -104,6 +104,7 @@ import { useWorkspaceDirectory } from "@/stores/session-store-hooks";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
+import { buildWorkspaceKeyboardHandlerId } from "@/keyboard/handler-id";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
 
 const DROPDOWN_WIDTH = 220;
@@ -261,7 +262,7 @@ function TabLabelMeasurement({
 interface TerminalProfileMenuItemProps {
   profile: { id: string; name: string; command: string; args?: string[]; icon?: string };
   disabled?: boolean;
-  onLaunch: (profile: TerminalProfileInput) => void;
+  onLaunch: (profile: TerminalProfile) => void;
 }
 
 function TerminalProfileMenuItem({ profile, disabled, onLaunch }: TerminalProfileMenuItemProps) {
@@ -286,7 +287,7 @@ interface TabTargetLauncherOptions {
   onOpenChanges: () => void;
   onOpenFiles: () => void;
   onOpenPullRequest: () => void;
-  onCreateTerminalWithProfile: (profile: TerminalProfileInput) => void;
+  onCreateTerminalWithProfile: (profile: TerminalProfile) => void;
 }
 
 interface WorkspaceNewTabButtonProps extends TabTargetLauncherOptions {
@@ -381,7 +382,7 @@ function WorkspaceNewTabButton({
             trailing={agentShortcut}
             onSelect={onCreateAgentTab}
           >
-            {t("workspace.tabs.actions.newAgent")}
+            {t("workspace.tabs.fallback.agent")}
           </DropdownMenuItem>
           <DropdownMenuItem
             testID="workspace-new-tab-menu-terminal"
@@ -390,7 +391,7 @@ function WorkspaceNewTabButton({
             trailing={terminalShortcut}
             onSelect={terminalDisabled ? undefined : onCreateTerminal}
           >
-            {t("workspace.tabs.actions.newTerminal")}
+            {t("workspace.tabs.fallback.terminal")}
           </DropdownMenuItem>
           {showCreateBrowserTab ? (
             <DropdownMenuItem
@@ -399,7 +400,7 @@ function WorkspaceNewTabButton({
               trailing={browserShortcut}
               onSelect={onCreateBrowser}
             >
-              {t("workspace.tabs.actions.newBrowser")}
+              {t("workspace.tabs.fallback.browser")}
             </DropdownMenuItem>
           ) : null}
           {isGit ? (
@@ -660,7 +661,7 @@ interface WorkspaceDesktopTabsRowProps {
   onCloseTabsToRight: (tabId: string) => Promise<void> | void;
   onCloseOtherTabs: (tabId: string) => Promise<void> | void;
   onCreateDraftTab: (input: { paneId?: string }) => void;
-  onCreateTerminalTab: (input: { paneId?: string; profile?: TerminalProfileInput }) => void;
+  onCreateTerminalTab: (input: { paneId?: string; profile?: TerminalProfile }) => void;
   onCreateBrowserTab: (input: { paneId?: string }) => void;
   showCreateBrowserTab?: boolean;
   disableCreateTerminal?: boolean;
@@ -1167,7 +1168,9 @@ function ResolvedWorkspaceDesktopTabsRow({
   const tabScrollOffset = useSharedValue(0);
   const tabScrollViewportWidth = useSharedValue(0);
   const tabScrollContentWidth = useSharedValue(0);
-  const labelMeasurementsRef = useRef(new Map<string, WorkspaceTabLabelMeasurement>());
+  const [labelMeasurements, setLabelMeasurements] = useState(
+    () => new Map<string, WorkspaceTabLabelMeasurement>(),
+  );
   const [trackSnapshot, setTrackSnapshot] = useState<WorkspaceTabTrackSnapshot | null>(null);
   const workspaceRoot = useWorkspaceDirectory(normalizedServerId, normalizedWorkspaceId) ?? "";
   const checkoutStatus = useCheckoutStatusQuery({
@@ -1298,23 +1301,28 @@ function ResolvedWorkspaceDesktopTabsRow({
     [fallbackTabLabels, tabs],
   );
   const tabLabelSignature = useMemo(() => workspaceTabLabelSignature(tabLabels), [tabLabels]);
+  const currentTabLabelKeys = useMemo(() => new Set(tabLabels.map(({ key }) => key)), [tabLabels]);
+  useEffect(() => {
+    setLabelMeasurements((current) => {
+      const removedKeys = [...current.keys()].filter((key) => !currentTabLabelKeys.has(key));
+      if (removedKeys.length === 0) {
+        return current;
+      }
+      const next = new Map(current);
+      for (const key of removedKeys) {
+        next.delete(key);
+      }
+      return next;
+    });
+  }, [currentTabLabelKeys]);
   const publishMeasuredTrack = useCallback(() => {
     if (tabsContainerWidth <= 0) {
       return;
     }
-    const labelWidths = completeWorkspaceTabLabelWidths(tabLabels, labelMeasurementsRef.current);
+    const labelWidths = completeWorkspaceTabLabelWidths(tabLabels, labelMeasurements);
     if (!labelWidths) {
       return;
     }
-
-    const retainedMeasurements = new Map<string, WorkspaceTabLabelMeasurement>();
-    for (const { key } of tabLabels) {
-      const measurement = labelMeasurementsRef.current.get(key);
-      if (measurement) {
-        retainedMeasurements.set(key, measurement);
-      }
-    }
-    labelMeasurementsRef.current = retainedMeasurements;
 
     setTrackSnapshot((current) => {
       if (
@@ -1330,7 +1338,7 @@ function ResolvedWorkspaceDesktopTabsRow({
         labelWidths,
       };
     });
-  }, [tabLabelSignature, tabLabels, tabs, tabsContainerWidth]);
+  }, [labelMeasurements, tabLabelSignature, tabLabels, tabs, tabsContainerWidth]);
 
   useLayoutEffect(() => {
     publishMeasuredTrack();
@@ -1342,14 +1350,17 @@ function ResolvedWorkspaceDesktopTabsRow({
       if (width <= 0) {
         return;
       }
-      const current = labelMeasurementsRef.current.get(key);
-      if (current?.label === label && current.width === width) {
-        return;
-      }
-      labelMeasurementsRef.current.set(key, { label, width });
-      publishMeasuredTrack();
+      setLabelMeasurements((current) => {
+        const measurement = current.get(key);
+        if (measurement?.label === label && measurement.width === width) {
+          return current;
+        }
+        const next = new Map(current);
+        next.set(key, { label, width });
+        return next;
+      });
     },
-    [publishMeasuredTrack],
+    [],
   );
 
   const displayedTabs = useMemo(() => {
@@ -1396,7 +1407,7 @@ function ResolvedWorkspaceDesktopTabsRow({
   }, [onCreateTerminalTab, paneId]);
 
   const handleCreateTerminalWithProfile = useCallback(
-    (profile: TerminalProfileInput) => {
+    (profile: TerminalProfile) => {
       onCreateTerminalTab({ paneId, profile });
     },
     [onCreateTerminalTab, paneId],
@@ -1479,7 +1490,12 @@ function ResolvedWorkspaceDesktopTabsRow({
   );
 
   useKeyboardActionHandler({
-    handlerId: `workspace-new-tab-menu:${normalizedServerId}:${paneId ?? "main"}`,
+    handlerId: buildWorkspaceKeyboardHandlerId({
+      name: "workspace-new-tab-menu",
+      serverId: normalizedServerId,
+      workspaceId: normalizedWorkspaceId,
+      paneId,
+    }),
     actions: [
       "workspace.tab.menu.open",
       "workspace.tab.target.agent",
@@ -1928,7 +1944,7 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
     minWidth: 0,
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
+    fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.normal,
     userSelect: "none",
   },
@@ -2013,7 +2029,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   newTabTooltipText: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
+    fontSize: theme.fontSize.base,
   },
   newTabTooltipRow: {
     flexDirection: "row",
@@ -2028,10 +2044,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   tooltipAgentId: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
   },
   menuItemHint: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
   },
 }));

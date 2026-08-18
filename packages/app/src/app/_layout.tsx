@@ -72,6 +72,7 @@ import { registerWorkspaceRouteNavigationRef } from "@/navigation/workspace-rout
 import { ThemedStack } from "@/navigation/themed-stack";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { AgentNavigationListener } from "@/desktop/agent-navigation";
+import { LegacyAgentSkillsMigration } from "@/agent-skills/legacy-migration";
 import { legacyFavoriteProfileMigration } from "@/agent-profiles/migration";
 import { listenToDesktopEvent } from "@/desktop/electron/events";
 import { updateDesktopWindowControls } from "@/desktop/electron/window";
@@ -596,6 +597,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
       <DownloadToast />
       <RosettaCalloutSource />
       <UpdateCalloutSource />
+      <LegacyAgentSkillsMigration />
       <WorktreeSetupCalloutSource />
       <CommandCenterRootActions />
       <CommandCenterWorkspaceActions />
@@ -684,7 +686,7 @@ function ProvidersWrapper({ children }: { children: ReactNode }) {
     applyAppearance({
       uiFontFamily: settings.uiFontFamily,
       monoFontFamily: settings.monoFontFamily,
-      uiFontSize: settings.uiFontSize,
+      uiBaseFontSize: settings.uiBaseFontSize,
       codeFontSize: settings.codeFontSize,
       syntaxTheme: settings.syntaxTheme,
     });
@@ -692,7 +694,7 @@ function ProvidersWrapper({ children }: { children: ReactNode }) {
     settingsLoading,
     settings.uiFontFamily,
     settings.monoFontFamily,
-    settings.uiFontSize,
+    settings.uiBaseFontSize,
     settings.codeFontSize,
     settings.syntaxTheme,
   ]);
