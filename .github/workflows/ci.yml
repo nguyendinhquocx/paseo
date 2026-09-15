@@ -361,6 +361,9 @@ jobs:
         run: npm run test:e2e --workspace=@getpaseo/app -- --shard=${{ env.PLAYWRIGHT_SHARD }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Weight file groups by observed duration; raw test counts overload
+          # early agent/Changes specs. Required check names remain unchanged.
+          PWTEST_SHARD_WEIGHTS: "111:172:137:160"
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
@@ -452,14 +455,18 @@ jobs:
       - name: Install dependencies
         run: node scripts/npm-retry.mjs ci
 
-      - name: Build server stack
-        run: npm run build:server
-
       - name: Install agent CLIs for provider tests
         run: node scripts/npm-retry.mjs install -g @anthropic-ai/claude-code @openai/codex@0.105.0 opencode-ai
 
-      - name: Run CLI tests
-        run: npm run test --workspace=@getpaseo/cli
+      # The local runner builds its dependencies and shards its own E2E files.
+      - name: Run CLI E2E tests
+        run: npm run test:local --workspace=@getpaseo/cli
+
+      # Source tests do not read PASEO_CLI_TEST_SHARD. Run them once, on the
+      # shortest E2E shard, after its runner has built the server stack.
+      - name: Run CLI source tests
+        if: ${{ env.PASEO_CLI_TEST_SHARD == '3' }}
+        run: npm run test:unit --workspace=@getpaseo/cli
 
   cli-tests-2:
     name: cli-tests (shard 2/3)
