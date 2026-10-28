@@ -328,7 +328,7 @@ jobs:
     name: playwright (shard 1/4)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.browser != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       PLAYWRIGHT_SHARD: "1/4"
@@ -376,7 +376,7 @@ jobs:
     name: playwright (shard 2/4)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.browser != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       PLAYWRIGHT_SHARD: "2/4"
@@ -387,7 +387,7 @@ jobs:
     name: playwright (shard 3/4)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.browser != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       PLAYWRIGHT_SHARD: "3/4"
@@ -398,7 +398,7 @@ jobs:
     name: playwright (shard 4/4)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.browser != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       PLAYWRIGHT_SHARD: "4/4"
